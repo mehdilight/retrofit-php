@@ -5,12 +5,15 @@ declare(strict_types=1);
 namespace Phpmystic\RetrofitPhp\Internal;
 
 use GuzzleHttp\Promise\PromiseInterface;
+use Phpmystic\RetrofitPhp\Cache\CacheInterface;
+use Phpmystic\RetrofitPhp\Cache\CachePolicy;
 use Phpmystic\RetrofitPhp\Contracts\Call;
 use Phpmystic\RetrofitPhp\Contracts\Converter;
 use Phpmystic\RetrofitPhp\Contracts\HttpClient;
 use Phpmystic\RetrofitPhp\Contracts\Interceptor;
 use Phpmystic\RetrofitPhp\Http\Request;
 use Phpmystic\RetrofitPhp\Http\Response;
+use Phpmystic\RetrofitPhp\Retry\RetryPolicy;
 
 /**
  * @template T
@@ -30,6 +33,9 @@ final class DefaultCall implements Call
         private readonly ?Converter $requestConverter,
         private readonly ?Converter $responseConverter,
         private readonly array $interceptors = [],
+        private readonly ?RetryPolicy $retryPolicy = null,
+        private readonly ?CacheInterface $cache = null,
+        private readonly ?CachePolicy $cachePolicy = null,
     ) {}
 
     public function execute(): Response
@@ -47,19 +53,90 @@ final class DefaultCall implements Call
             $request = $request->withBody($convertedBody);
         }
 
-        // Create executor closure for the HTTP client
-        $executor = fn(Request $req) => $this->httpClient->execute($req);
+        // Check cache first
+        if ($this->cache !== null && $this->cachePolicy !== null) {
+            $cacheKey = $this->cachePolicy->generateKey($request);
+            $cachedResponse = $this->cache->get($cacheKey);
 
-        // If we have interceptors, use the chain
-        if (!empty($this->interceptors)) {
-            $chain = new InterceptorChain($request, $this->interceptors, $executor);
-            $response = $chain->proceed($request);
-        } else {
-            // Execute HTTP request directly
-            $response = $executor($request);
+            if ($cachedResponse !== null) {
+                // Return from cache
+                return $this->convertResponse($cachedResponse);
+            }
+        }
+
+        // Execute with retry logic
+        $response = $this->executeWithRetry($request);
+
+        // Store in cache if policy allows
+        if ($this->cache !== null && $this->cachePolicy !== null) {
+            if ($this->cachePolicy->isCacheable($request, $response)) {
+                $cacheKey = $this->cachePolicy->generateKey($request);
+                $this->cache->set($cacheKey, $response, $this->cachePolicy->getTtl());
+            }
         }
 
         // Convert response body if converter exists
+        return $this->convertResponse($response);
+    }
+
+    private function executeWithRetry(Request $request): Response
+    {
+        $attemptNumber = 0;
+        $lastException = null;
+        $lastResponse = null;
+
+        while (true) {
+            try {
+                // Create executor closure for the HTTP client
+                $executor = fn(Request $req) => $this->httpClient->execute($req);
+
+                // If we have interceptors, use the chain
+                if (!empty($this->interceptors)) {
+                    $chain = new InterceptorChain($request, $this->interceptors, $executor);
+                    $response = $chain->proceed($request);
+                } else {
+                    // Execute HTTP request directly
+                    $response = $executor($request);
+                }
+
+                $lastResponse = $response;
+                $lastException = null;
+
+                // Check if we should retry based on response
+                if ($this->retryPolicy !== null && $this->retryPolicy->shouldRetry($request, $response, null, $attemptNumber)) {
+                    $attemptNumber++;
+                    $this->delay($this->retryPolicy->getDelayMs($attemptNumber - 1));
+                    continue;
+                }
+
+                // If retries are exhausted and response is still not successful, throw exception
+                if ($this->retryPolicy !== null && !$response->isSuccessful() && $attemptNumber > 0) {
+                    throw new \RuntimeException(
+                        "Request failed after {$attemptNumber} retries with status {$response->code}: {$response->message}"
+                    );
+                }
+
+                // Success or non-retryable response
+                return $response;
+            } catch (\Throwable $e) {
+                $lastException = $e;
+                $lastResponse = null;
+
+                // Check if we should retry based on exception
+                if ($this->retryPolicy !== null && $this->retryPolicy->shouldRetry($request, null, $e, $attemptNumber)) {
+                    $attemptNumber++;
+                    $this->delay($this->retryPolicy->getDelayMs($attemptNumber - 1));
+                    continue;
+                }
+
+                // Non-retryable exception or retries exhausted, rethrow
+                throw $e;
+            }
+        }
+    }
+
+    private function convertResponse(Response $response): Response
+    {
         if ($this->responseConverter !== null && $response->rawBody !== null) {
             $convertedBody = $this->responseConverter->convert($response->rawBody);
             return new Response(
@@ -72,6 +149,13 @@ final class DefaultCall implements Call
         }
 
         return $response;
+    }
+
+    private function delay(int $milliseconds): void
+    {
+        if ($milliseconds > 0) {
+            usleep($milliseconds * 1000);
+        }
     }
 
     public function executeAsync(): PromiseInterface
@@ -131,6 +215,9 @@ final class DefaultCall implements Call
             $this->requestConverter,
             $this->responseConverter,
             $this->interceptors,
+            $this->retryPolicy,
+            $this->cache,
+            $this->cachePolicy,
         );
     }
 

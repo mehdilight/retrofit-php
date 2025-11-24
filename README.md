@@ -4,6 +4,38 @@ A type-safe HTTP client for PHP, inspired by [Square's Retrofit](https://square.
 
 Turn your HTTP API into a PHP interface using attributes.
 
+## Features
+
+- ✅ **Type-Safe API Definitions** - Define APIs as PHP interfaces with attributes
+- ✅ **HTTP Methods** - Support for GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS
+- ✅ **URL Parameters** - Path parameters, query parameters, and query maps
+- ✅ **Request Body** - JSON, form-encoded, and multipart requests
+- ✅ **Headers** - Static and dynamic headers
+- ✅ **Converters** - JSON conversion with custom DTO/model hydration
+- ✅ **Async Requests** - Promise-based async operations with Guzzle
+- ✅ **Retry Policies** - Automatic retries with exponential backoff
+- ✅ **Response Caching** - TTL-based caching with pluggable cache backends
+- ✅ **Interceptors** - Request/response modification and logging
+- ✅ **Timeouts** - Per-endpoint timeout configuration
+- ✅ **PSR-7 Compliant** - Request and Response objects implement PSR-7
+
+## Table of Contents
+
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [HTTP Methods](#http-methods)
+- [URL Parameters](#url-parameters)
+- [Request Body](#request-body)
+- [Headers](#headers)
+- [HTTP Client Configuration](#http-client-configuration)
+- [Converters](#converters)
+- [Async Requests](#async-requests)
+- [Retry Policies](#retry-policies)
+- [Response Caching](#response-caching)
+- [Timeouts](#timeouts)
+- [Interceptors](#interceptors)
+- [Complete Example](#complete-example)
+
 ## Installation
 
 ```bash
@@ -395,6 +427,331 @@ foreach ($responses as $response) {
 }
 ```
 
+## Retry Policies
+
+Automatically retry failed requests with configurable backoff strategies.
+
+### Basic Retry
+
+```php
+use Phpmystic\RetrofitPhp\Retry\RetryPolicy;
+
+$retrofit = Retrofit::builder()
+    ->baseUrl('https://api.example.com')
+    ->client($client)
+    ->retryPolicy(RetryPolicy::default()) // Retry on 429, 500, 502, 503, 504
+    ->addConverterFactory(new JsonConverterFactory())
+    ->build();
+```
+
+### Custom Retry Policy
+
+```php
+use Phpmystic\RetrofitPhp\Retry\RetryPolicy;
+use Phpmystic\RetrofitPhp\Retry\ExponentialBackoff;
+
+$retryPolicy = RetryPolicy::builder()
+    ->maxAttempts(5)                          // Total attempts (1 original + 4 retries)
+    ->retryOnStatusCodes([429, 500, 503])     // Which status codes to retry
+    ->retryOnExceptions([\RuntimeException::class]) // Which exceptions to retry
+    ->backoffStrategy(new ExponentialBackoff(
+        baseDelayMs: 1000,     // Start with 1 second
+        multiplier: 2.0,        // Double each time
+        maxDelayMs: 30000,      // Cap at 30 seconds
+        jitter: true            // Add randomization to prevent thundering herd
+    ))
+    ->build();
+
+$retrofit = Retrofit::builder()
+    ->baseUrl('https://api.example.com')
+    ->client($client)
+    ->retryPolicy($retryPolicy)
+    ->addConverterFactory(new JsonConverterFactory())
+    ->build();
+```
+
+### Backoff Strategies
+
+**Exponential Backoff** (recommended for most cases):
+```php
+use Phpmystic\RetrofitPhp\Retry\ExponentialBackoff;
+
+// Delays: 1s, 2s, 4s, 8s, 16s...
+$backoff = new ExponentialBackoff(
+    baseDelayMs: 1000,
+    multiplier: 2.0,
+    maxDelayMs: 60000,  // Optional: cap at 60 seconds
+    jitter: true         // Optional: randomize delay
+);
+```
+
+**Fixed Backoff**:
+```php
+use Phpmystic\RetrofitPhp\Retry\FixedBackoff;
+
+// Always wait 5 seconds between retries
+$backoff = new FixedBackoff(delayMs: 5000);
+```
+
+**Linear Backoff**:
+```php
+use Phpmystic\RetrofitPhp\Retry\LinearBackoff;
+
+// Delays: 1s, 2s, 3s, 4s, 5s...
+$backoff = new LinearBackoff(
+    initialDelayMs: 1000,
+    incrementMs: 1000,
+    maxDelayMs: 10000  // Optional: cap at 10 seconds
+);
+```
+
+### Disable Retries
+
+```php
+$retrofit = Retrofit::builder()
+    ->baseUrl('https://api.example.com')
+    ->client($client)
+    ->retryPolicy(RetryPolicy::none())
+    ->build();
+```
+
+## Response Caching
+
+Cache responses to reduce API calls and improve performance.
+
+### Basic Caching
+
+```php
+use Phpmystic\RetrofitPhp\Cache\InMemoryCache;
+use Phpmystic\RetrofitPhp\Cache\CachePolicy;
+
+$cache = new InMemoryCache();
+$cachePolicy = new CachePolicy(ttl: 300); // Cache for 5 minutes
+
+$retrofit = Retrofit::builder()
+    ->baseUrl('https://api.example.com')
+    ->client($client)
+    ->cache($cache)
+    ->cachePolicy($cachePolicy)
+    ->addConverterFactory(new JsonConverterFactory())
+    ->build();
+```
+
+### Cache Policy Options
+
+```php
+$cachePolicy = new CachePolicy(
+    ttl: 300,                    // Time-to-live in seconds
+    onlyGetRequests: true,       // Only cache GET requests (default: true)
+    onlySuccessResponses: true,  // Only cache 2xx responses (default: true)
+);
+```
+
+### Per-Method Caching
+
+```php
+use Phpmystic\RetrofitPhp\Attributes\Cacheable;
+
+interface MyApi
+{
+    #[GET('/users/{id}')]
+    #[Cacheable(ttl: 60)]  // Cache this endpoint for 1 minute
+    public function getUser(#[Path('id')] int $id): array;
+
+    #[GET('/posts')]
+    #[Cacheable(ttl: 300)] // Cache this endpoint for 5 minutes
+    public function getPosts(): array;
+
+    #[POST('/users')]
+    public function createUser(#[Body] array $data): array; // Not cached
+}
+```
+
+### Cache Control Headers
+
+The cache policy respects standard HTTP cache headers:
+
+```php
+// Request with Cache-Control: no-cache won't be cached
+// Response with Cache-Control: no-store won't be cached
+```
+
+### Custom Cache Implementation
+
+Implement `CacheInterface` for custom caching (Redis, Memcached, etc.):
+
+```php
+use Phpmystic\RetrofitPhp\Cache\CacheInterface;
+use Phpmystic\RetrofitPhp\Http\Response;
+
+class RedisCache implements CacheInterface
+{
+    public function __construct(private Redis $redis) {}
+
+    public function get(string $key): ?Response
+    {
+        $data = $this->redis->get($key);
+        return $data ? unserialize($data) : null;
+    }
+
+    public function set(string $key, Response $response, int $ttl): void
+    {
+        $this->redis->setex($key, $ttl, serialize($response));
+    }
+
+    public function invalidate(string $key): void
+    {
+        $this->redis->del($key);
+    }
+
+    public function clear(): void
+    {
+        $this->redis->flushDB();
+    }
+}
+```
+
+## Timeouts
+
+Configure per-endpoint timeouts using the `#[Timeout]` attribute.
+
+```php
+use Phpmystic\RetrofitPhp\Attributes\Timeout;
+
+interface MyApi
+{
+    #[GET('/quick')]
+    #[Timeout(5)]  // 5 second timeout
+    public function getQuickData(): array;
+
+    #[GET('/slow')]
+    #[Timeout(120)]  // 2 minute timeout
+    public function getSlowData(): array;
+
+    #[POST('/upload')]
+    #[Timeout(300)]  // 5 minute timeout for file uploads
+    public function uploadFile(#[Body] array $data): array;
+}
+```
+
+**Note:** The `#[Timeout]` attribute is currently for documentation purposes. To configure timeouts, use Guzzle client options:
+
+```php
+$client = GuzzleHttpClient::create([
+    'timeout' => 30,          // Default timeout for all requests
+    'connect_timeout' => 10,  // Connection timeout
+]);
+```
+
+## Interceptors
+
+Intercept and modify requests/responses, add logging, authentication, etc.
+
+### Creating an Interceptor
+
+```php
+use Phpmystic\RetrofitPhp\Contracts\Interceptor;
+use Phpmystic\RetrofitPhp\Contracts\Chain;
+use Phpmystic\RetrofitPhp\Http\Request;
+use Phpmystic\RetrofitPhp\Http\Response;
+
+class AuthInterceptor implements Interceptor
+{
+    public function __construct(private string $apiKey) {}
+
+    public function intercept(Chain $chain): Response
+    {
+        $request = $chain->request();
+
+        // Add authentication header
+        $newRequest = $request->withHeader('Authorization', "Bearer {$this->apiKey}");
+
+        // Proceed with modified request
+        return $chain->proceed($newRequest);
+    }
+}
+```
+
+### Adding Interceptors
+
+```php
+$retrofit = Retrofit::builder()
+    ->baseUrl('https://api.example.com')
+    ->client($client)
+    ->addInterceptor(new AuthInterceptor('my-api-key'))
+    ->addInterceptor(new LoggingInterceptor())
+    ->addConverterFactory(new JsonConverterFactory())
+    ->build();
+```
+
+### Common Interceptor Use Cases
+
+**Logging Interceptor**:
+```php
+class LoggingInterceptor implements Interceptor
+{
+    public function intercept(Chain $chain): Response
+    {
+        $request = $chain->request();
+        $start = microtime(true);
+
+        echo "→ {$request->method} {$request->url}\n";
+
+        $response = $chain->proceed($request);
+
+        $duration = round((microtime(true) - $start) * 1000);
+        echo "← {$response->code} ({$duration}ms)\n";
+
+        return $response;
+    }
+}
+```
+
+**Retry-After Interceptor**:
+```php
+class RetryAfterInterceptor implements Interceptor
+{
+    public function intercept(Chain $chain): Response
+    {
+        $response = $chain->proceed($chain->request());
+
+        // If rate limited, wait and retry
+        if ($response->code === 429 && $response->hasHeader('Retry-After')) {
+            $retryAfter = (int) $response->getHeaderLine('Retry-After');
+            sleep($retryAfter);
+            return $chain->proceed($chain->request());
+        }
+
+        return $response;
+    }
+}
+```
+
+**Cache Interceptor**:
+```php
+class CacheInterceptor implements Interceptor
+{
+    public function __construct(private CacheInterface $cache) {}
+
+    public function intercept(Chain $chain): Response
+    {
+        $request = $chain->request();
+        $cacheKey = md5($request->method . $request->url);
+
+        // Check cache
+        if ($cached = $this->cache->get($cacheKey)) {
+            return $cached;
+        }
+
+        // Execute request and cache
+        $response = $chain->proceed($request);
+        $this->cache->set($cacheKey, $response, 300);
+
+        return $response;
+    }
+}
+```
+
 ## Complete Example
 
 ```php
@@ -405,6 +762,10 @@ require 'vendor/autoload.php';
 use Phpmystic\RetrofitPhp\Retrofit;
 use Phpmystic\RetrofitPhp\Http\GuzzleHttpClient;
 use Phpmystic\RetrofitPhp\Converter\JsonConverterFactory;
+use Phpmystic\RetrofitPhp\Retry\RetryPolicy;
+use Phpmystic\RetrofitPhp\Retry\ExponentialBackoff;
+use Phpmystic\RetrofitPhp\Cache\InMemoryCache;
+use Phpmystic\RetrofitPhp\Cache\CachePolicy;
 use Phpmystic\RetrofitPhp\Attributes\Http\GET;
 use Phpmystic\RetrofitPhp\Attributes\Http\POST;
 use Phpmystic\RetrofitPhp\Attributes\Http\PUT;
@@ -412,13 +773,18 @@ use Phpmystic\RetrofitPhp\Attributes\Http\DELETE;
 use Phpmystic\RetrofitPhp\Attributes\Parameter\Path;
 use Phpmystic\RetrofitPhp\Attributes\Parameter\Query;
 use Phpmystic\RetrofitPhp\Attributes\Parameter\Body;
+use Phpmystic\RetrofitPhp\Attributes\Cacheable;
+use Phpmystic\RetrofitPhp\Attributes\Timeout;
 
 interface PostsApi
 {
     #[GET('/posts')]
+    #[Cacheable(ttl: 300)]  // Cache for 5 minutes
     public function list(#[Query('_limit')] int $limit = 10): array;
 
     #[GET('/posts/{id}')]
+    #[Cacheable(ttl: 60)]   // Cache for 1 minute
+    #[Timeout(10)]
     public function get(#[Path('id')] int $id): array;
 
     #[POST('/posts')]
@@ -431,24 +797,50 @@ interface PostsApi
     public function delete(#[Path('id')] int $id): array;
 }
 
-// Setup
+// Configure HTTP client
+$client = GuzzleHttpClient::create([
+    'timeout' => 30,
+    'connect_timeout' => 10,
+]);
+
+// Configure retry policy
+$retryPolicy = RetryPolicy::builder()
+    ->maxAttempts(3)
+    ->backoffStrategy(new ExponentialBackoff(
+        baseDelayMs: 1000,
+        multiplier: 2.0
+    ))
+    ->build();
+
+// Configure caching
+$cache = new InMemoryCache();
+$cachePolicy = new CachePolicy(ttl: 300);
+
+// Build Retrofit instance
 $retrofit = Retrofit::builder()
     ->baseUrl('https://jsonplaceholder.typicode.com')
-    ->client(GuzzleHttpClient::create())
+    ->client($client)
+    ->retryPolicy($retryPolicy)
+    ->cache($cache)
+    ->cachePolicy($cachePolicy)
     ->addConverterFactory(new JsonConverterFactory())
     ->build();
 
 $api = $retrofit->create(PostsApi::class);
 
-// List posts
+// List posts (will be cached)
 $posts = $api->list(5);
 foreach ($posts as $post) {
     echo "- {$post['title']}\n";
 }
 
-// Get single post
+// Get single post (will be cached)
 $post = $api->get(1);
 echo "Title: {$post['title']}\n";
+
+// Second call returns from cache instantly
+$post = $api->get(1);
+echo "Cached title: {$post['title']}\n";
 
 // Create post
 $newPost = $api->create([

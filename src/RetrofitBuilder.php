@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace Phpmystic\RetrofitPhp;
 
 use InvalidArgumentException;
+use Phpmystic\RetrofitPhp\Cache\CacheInterface;
+use Phpmystic\RetrofitPhp\Cache\CachePolicy;
 use Phpmystic\RetrofitPhp\Contracts\CallAdapterFactory;
 use Phpmystic\RetrofitPhp\Contracts\ConverterFactory;
 use Phpmystic\RetrofitPhp\Contracts\HttpClient;
 use Phpmystic\RetrofitPhp\Contracts\Interceptor;
+use Phpmystic\RetrofitPhp\Retry\RetryPolicy;
 
 final class RetrofitBuilder
 {
@@ -23,6 +26,10 @@ final class RetrofitBuilder
 
     /** @var Interceptor[] */
     private array $interceptors = [];
+
+    private ?RetryPolicy $retryPolicy = null;
+    private ?CacheInterface $cache = null;
+    private ?CachePolicy $cachePolicy = null;
 
     public function baseUrl(string $baseUrl): self
     {
@@ -54,6 +61,24 @@ final class RetrofitBuilder
         return $this;
     }
 
+    public function retryPolicy(RetryPolicy $retryPolicy): self
+    {
+        $this->retryPolicy = $retryPolicy;
+        return $this;
+    }
+
+    public function cache(CacheInterface $cache): self
+    {
+        $this->cache = $cache;
+        return $this;
+    }
+
+    public function cachePolicy(CachePolicy $cachePolicy): self
+    {
+        $this->cachePolicy = $cachePolicy;
+        return $this;
+    }
+
     public function build(): Retrofit
     {
         if ($this->baseUrl === null) {
@@ -70,6 +95,9 @@ final class RetrofitBuilder
             $this->converterFactories,
             $this->callAdapterFactories,
             $this->interceptors,
+            $this->retryPolicy,
+            $this->cache,
+            $this->cachePolicy,
         );
     }
 }

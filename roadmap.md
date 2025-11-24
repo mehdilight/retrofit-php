@@ -47,21 +47,30 @@
 - [x] Interceptor chain pattern
 - [x] `Interceptor` and `Chain` interfaces
 
+### Phase 3: Advanced Features ✅
+- [x] Retry policies with backoff (exponential, fixed, linear)
+- [x] Per-request timeout configuration (`#[Timeout]` attribute)
+- [x] Response caching (in-memory, with TTL)
+- [x] Cache policy (configurable, respects Cache-Control headers)
+- [x] `#[Cacheable]` attribute for per-method caching
+- [x] Pluggable cache backends (`CacheInterface`)
+- [x] Request cancellation (already implemented)
+
+### PSR Compliance ✅
+- [x] PSR-7 RequestInterface implementation
+- [x] PSR-7 ResponseInterface implementation
+- [x] Immutable request/response objects
+
 ### Testing & Docs
-- [x] PHPUnit test suite (153 tests)
-- [x] README documentation
+- [x] PHPUnit test suite (192 tests, 405 assertions)
+- [x] README documentation (comprehensive)
 - [x] Architecture diagrams (Mermaid)
-- [x] Example files
+- [x] Example files (async, interceptors, pagination, typed DTOs)
+- [x] Roadmap documentation
 
 ---
 
 ## 📋 Planned
-
-### Phase 3: Advanced Features
-- [ ] Retry policies with backoff
-- [ ] Per-request timeout configuration
-- [ ] Response caching
-- [ ] Request cancellation improvements
 
 ### Phase 4: File Handling
 - [ ] Multipart file uploads (streams)
@@ -92,7 +101,26 @@
 
 ## Version History
 
-### v1.2.0 (Current)
+### v1.3.0 (Current)
+- **Phase 3: Advanced Features**
+- Retry policies with configurable backoff strategies
+  - Exponential backoff with jitter support
+  - Fixed backoff
+  - Linear backoff
+- Response caching with TTL
+  - In-memory cache implementation
+  - Pluggable cache backends (`CacheInterface`)
+  - Cache policy with Cache-Control header support
+  - `#[Cacheable]` attribute for per-method caching
+- Per-request timeout configuration
+  - `#[Timeout]` attribute
+- PSR-7 compliance
+  - Request implements `Psr\Http\Message\RequestInterface`
+  - Response implements `Psr\Http\Message\ResponseInterface`
+- 192 tests, 405 assertions
+- Comprehensive documentation updates
+
+### v1.2.0
 - Interceptors support (request/response modification)
 - `Interceptor` and `Chain` interfaces
 - `InterceptorChain` implementation

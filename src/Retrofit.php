@@ -6,11 +6,14 @@ namespace Phpmystic\RetrofitPhp;
 
 use ReflectionClass;
 use ReflectionMethod;
+use Phpmystic\RetrofitPhp\Cache\CacheInterface;
+use Phpmystic\RetrofitPhp\Cache\CachePolicy;
 use Phpmystic\RetrofitPhp\Contracts\CallAdapterFactory;
 use Phpmystic\RetrofitPhp\Contracts\ConverterFactory;
 use Phpmystic\RetrofitPhp\Contracts\HttpClient;
 use Phpmystic\RetrofitPhp\Contracts\Interceptor;
 use Phpmystic\RetrofitPhp\Internal\ServiceProxy;
+use Phpmystic\RetrofitPhp\Retry\RetryPolicy;
 
 final class Retrofit
 {
@@ -28,6 +31,9 @@ final class Retrofit
         private readonly array $converterFactories,
         private readonly array $callAdapterFactories,
         private readonly array $interceptors = [],
+        private readonly ?RetryPolicy $retryPolicy = null,
+        private readonly ?CacheInterface $cache = null,
+        private readonly ?CachePolicy $cachePolicy = null,
     ) {}
 
     public static function builder(): RetrofitBuilder
@@ -68,6 +74,9 @@ final class Retrofit
                 $this->httpClient,
                 $this->converterFactories,
                 $this->interceptors,
+                $this->retryPolicy,
+                $this->cache,
+                $this->cachePolicy,
             );
         }
 

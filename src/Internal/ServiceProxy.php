@@ -6,11 +6,14 @@ namespace Phpmystic\RetrofitPhp\Internal;
 
 use ReflectionClass;
 use ReflectionMethod;
+use Phpmystic\RetrofitPhp\Cache\CacheInterface;
+use Phpmystic\RetrofitPhp\Cache\CachePolicy;
 use Phpmystic\RetrofitPhp\Contracts\Call;
 use Phpmystic\RetrofitPhp\Contracts\ConverterFactory;
 use Phpmystic\RetrofitPhp\Contracts\HttpClient;
 use Phpmystic\RetrofitPhp\Contracts\Interceptor;
 use Phpmystic\RetrofitPhp\Contracts\ResponseTypeAwareConverterFactory;
+use Phpmystic\RetrofitPhp\Retry\RetryPolicy;
 use RuntimeException;
 
 final class ServiceProxy
@@ -29,6 +32,9 @@ final class ServiceProxy
         private readonly HttpClient $httpClient,
         private readonly array $converterFactories,
         private readonly array $interceptors = [],
+        private readonly ?RetryPolicy $retryPolicy = null,
+        private readonly ?CacheInterface $cache = null,
+        private readonly ?CachePolicy $cachePolicy = null,
     ) {
         $this->validateInterface();
         $this->loadServiceMethods();
@@ -77,6 +83,9 @@ final class ServiceProxy
             $requestConverter,
             $responseConverter,
             $this->interceptors,
+            $this->retryPolicy,
+            $this->cache,
+            $this->cachePolicy,
         );
     }
 
