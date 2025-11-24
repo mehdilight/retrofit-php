@@ -86,6 +86,7 @@ final class ServiceProxy
             $this->retryPolicy,
             $this->cache,
             $this->cachePolicy,
+            $serviceMethod,
         );
     }
 

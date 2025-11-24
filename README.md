@@ -17,6 +17,7 @@ Turn your HTTP API into a PHP interface using attributes.
 - ✅ **Response Caching** - TTL-based caching with pluggable cache backends
 - ✅ **Interceptors** - Request/response modification and logging
 - ✅ **Timeouts** - Per-endpoint timeout configuration
+- ✅ **File Handling** - Streaming uploads/downloads with progress tracking
 - ✅ **PSR-7 Compliant** - Request and Response objects implement PSR-7
 
 ## Table of Contents
@@ -34,6 +35,7 @@ Turn your HTTP API into a PHP interface using attributes.
 - [Response Caching](#response-caching)
 - [Timeouts](#timeouts)
 - [Interceptors](#interceptors)
+- [File Handling](#file-handling)
 - [Complete Example](#complete-example)
 
 ## Installation
@@ -751,6 +753,117 @@ class CacheInterceptor implements Interceptor
     }
 }
 ```
+
+## File Handling
+
+### Multipart File Uploads
+
+Upload files using the `FileUpload` class with support for streams.
+
+```php
+use Phpmystic\RetrofitPhp\Attributes\Http\POST;
+use Phpmystic\RetrofitPhp\Attributes\Multipart;
+use Phpmystic\RetrofitPhp\Attributes\Parameter\Part;
+use Phpmystic\RetrofitPhp\FileHandling\FileUpload;
+
+interface FileApi
+{
+    #[POST('/upload')]
+    #[Multipart]
+    public function uploadFile(
+        #[Part('file')] FileUpload $file,
+        #[Part('description')] string $description
+    ): array;
+}
+
+// Upload from file path
+$file = FileUpload::fromPath('/path/to/file.pdf');
+$result = $api->uploadFile($file, 'My document');
+
+// Upload from string content
+$file = FileUpload::fromString('file content', 'data.txt', 'text/plain');
+$result = $api->uploadFile($file, 'Text file');
+
+// Upload from PSR-7 stream
+$stream = \GuzzleHttp\Psr7\Utils::streamFor(fopen('/path/to/file.jpg', 'r'));
+$file = FileUpload::fromStream($stream, 'photo.jpg', 'image/jpeg');
+$result = $api->uploadFile($file, 'Photo upload');
+```
+
+**Key Features:**
+- Automatic content-type detection
+- Zero-memory-copy streaming for large files
+- Custom filename and content-type support
+- Works with PSR-7 StreamInterface
+
+### Streaming File Downloads
+
+Download large files without buffering into memory using the `#[Streaming]` attribute.
+
+```php
+use Phpmystic\RetrofitPhp\Attributes\Http\GET;
+use Phpmystic\RetrofitPhp\Attributes\Streaming;
+use Phpmystic\RetrofitPhp\Attributes\Parameter\Path;
+use Psr\Http\Message\StreamInterface;
+
+interface DownloadApi
+{
+    #[GET('/files/{id}/download')]
+    #[Streaming]
+    public function downloadFile(#[Path('id')] string $fileId): StreamInterface;
+}
+
+// Download returns a PSR-7 stream
+$stream = $api->downloadFile('12345');
+
+// Save to file
+file_put_contents('/tmp/download.zip', (string) $stream);
+
+// Or read in chunks
+$stream->rewind();
+while (!$stream->eof()) {
+    $chunk = $stream->read(8192); // Read 8KB at a time
+    // Process chunk...
+}
+```
+
+**Benefits:**
+- No memory buffering - efficient for large files
+- Returns PSR-7 `StreamInterface`
+- Read files in chunks
+- Seekable streams when supported
+
+### Progress Callbacks
+
+Track upload/download progress with `ProgressCallback`.
+
+```php
+use Phpmystic\RetrofitPhp\FileHandling\ProgressCallback;
+
+$progress = new ProgressCallback(function ($bytesTransferred, $totalBytes) {
+    if ($totalBytes > 0) {
+        $percentage = ($bytesTransferred / $totalBytes) * 100;
+        echo sprintf("Progress: %.2f%% (%d / %d bytes)\n",
+                    $percentage, $bytesTransferred, $totalBytes);
+    }
+});
+
+// Use with Guzzle options
+$client = GuzzleHttpClient::create([
+    'progress' => $progress->getCallback()
+]);
+
+$retrofit = Retrofit::builder()
+    ->baseUrl('https://api.example.com')
+    ->client($client)
+    ->build();
+```
+
+**Features:**
+- Real-time progress tracking
+- Works with both uploads and downloads
+- Compatible with Guzzle's progress option
+- Includes total bytes when available
 
 ## Complete Example
 

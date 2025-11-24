@@ -9,6 +9,8 @@ use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Exception\GuzzleException;
 use GuzzleHttp\Promise\PromiseInterface;
 use Phpmystic\RetrofitPhp\Contracts\HttpClient;
+use Phpmystic\RetrofitPhp\FileHandling\FileUpload;
+use Phpmystic\RetrofitPhp\FileHandling\ProgressCallback;
 
 final class GuzzleHttpClient implements HttpClient
 {
@@ -91,6 +93,9 @@ final class GuzzleHttpClient implements HttpClient
 
             if (is_array($request->body) && str_contains($contentType, 'application/x-www-form-urlencoded')) {
                 $options['form_params'] = $request->body;
+            } elseif (is_array($request->body) && $this->isMultipartRequest($request->body)) {
+                // Handle multipart with FileUpload objects
+                $options['multipart'] = $this->buildMultipartBody($request->body);
             } elseif (is_string($request->body)) {
                 $options['body'] = $request->body;
                 // Add JSON content-type if body looks like JSON and no content-type set
@@ -103,6 +108,67 @@ final class GuzzleHttpClient implements HttpClient
         }
 
         return $options;
+    }
+
+    /**
+     * Check if request body contains multipart data (FileUpload objects or streams).
+     *
+     * @param array<string, mixed> $body
+     */
+    private function isMultipartRequest(array $body): bool
+    {
+        foreach ($body as $value) {
+            if (is_array($value) && isset($value['value'])) {
+                $val = $value['value'];
+                if ($val instanceof FileUpload || $val instanceof \Psr\Http\Message\StreamInterface) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Build Guzzle multipart array from request body.
+     *
+     * @param array<string, mixed> $body
+     * @return array<int, array<string, mixed>>
+     */
+    private function buildMultipartBody(array $body): array
+    {
+        $multipart = [];
+
+        foreach ($body as $name => $item) {
+            if (is_array($item) && isset($item['value'])) {
+                $value = $item['value'];
+                $contentType = $item['contentType'] ?? null;
+
+                if ($value instanceof FileUpload) {
+                    $multipart[] = [
+                        'name' => $name,
+                        'contents' => $value->getStream(),
+                        'filename' => $value->getFilename(),
+                        'headers' => $contentType ? ['Content-Type' => $contentType] :
+                                    ($value->getContentType() ? ['Content-Type' => $value->getContentType()] : []),
+                    ];
+                } elseif ($value instanceof \Psr\Http\Message\StreamInterface) {
+                    $multipart[] = [
+                        'name' => $name,
+                        'contents' => $value,
+                        'filename' => $item['filename'] ?? 'file',
+                        'headers' => $contentType ? ['Content-Type' => $contentType] : [],
+                    ];
+                } else {
+                    // Regular form field
+                    $multipart[] = [
+                        'name' => $name,
+                        'contents' => (string) $value,
+                    ];
+                }
+            }
+        }
+
+        return $multipart;
     }
 
     private function looksLikeJson(string $body): bool

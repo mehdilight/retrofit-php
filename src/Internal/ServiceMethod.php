@@ -14,6 +14,7 @@ use Phpmystic\RetrofitPhp\Attributes\HeaderMap;
 use Phpmystic\RetrofitPhp\Attributes\Headers;
 use Phpmystic\RetrofitPhp\Attributes\Http\HttpMethod;
 use Phpmystic\RetrofitPhp\Attributes\Multipart;
+use Phpmystic\RetrofitPhp\Attributes\Streaming;
 use Phpmystic\RetrofitPhp\Attributes\Parameter\Body;
 use Phpmystic\RetrofitPhp\Attributes\Parameter\Field;
 use Phpmystic\RetrofitPhp\Attributes\Parameter\FieldMap;
@@ -26,6 +27,7 @@ use Phpmystic\RetrofitPhp\Attributes\Parameter\Url;
 use Phpmystic\RetrofitPhp\Attributes\ResponseType;
 use Phpmystic\RetrofitPhp\Contracts\Converter;
 use Phpmystic\RetrofitPhp\Contracts\ConverterFactory;
+use Phpmystic\RetrofitPhp\FileHandling\FileUpload;
 use Phpmystic\RetrofitPhp\Http\Request;
 use RuntimeException;
 
@@ -35,6 +37,7 @@ final class ServiceMethod
     private string $relativePath;
     private bool $isFormEncoded = false;
     private bool $isMultipart = false;
+    private bool $isStreaming = false;
 
     /** @var array<string, string> */
     private array $staticHeaders = [];
@@ -90,6 +93,9 @@ final class ServiceMethod
         }
         if ($this->findAttribute($this->method, Multipart::class) !== null) {
             $this->isMultipart = true;
+        }
+        if ($this->findAttribute($this->method, Streaming::class) !== null) {
+            $this->isStreaming = true;
         }
     }
 
@@ -284,5 +290,20 @@ final class ServiceMethod
     public function getResponseType(): ?ResponseType
     {
         return $this->responseType;
+    }
+
+    public function isStreaming(): bool
+    {
+        return $this->isStreaming;
+    }
+
+    public function isMultipart(): bool
+    {
+        return $this->isMultipart;
+    }
+
+    public function isFormEncoded(): bool
+    {
+        return $this->isFormEncoded;
     }
 }

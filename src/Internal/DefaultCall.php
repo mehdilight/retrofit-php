@@ -36,6 +36,7 @@ final class DefaultCall implements Call
         private readonly ?RetryPolicy $retryPolicy = null,
         private readonly ?CacheInterface $cache = null,
         private readonly ?CachePolicy $cachePolicy = null,
+        private readonly ?ServiceMethod $serviceMethod = null,
     ) {}
 
     public function execute(): Response
@@ -47,10 +48,16 @@ final class DefaultCall implements Call
         $this->executed = true;
 
         // Convert request body if converter exists
+        // Skip conversion for multipart and form-encoded requests
         $request = $this->request;
         if ($this->requestConverter !== null && $request->body !== null) {
-            $convertedBody = $this->requestConverter->convert($request->body);
-            $request = $request->withBody($convertedBody);
+            $skipConversion = $this->serviceMethod !== null &&
+                             ($this->serviceMethod->isMultipart() || $this->serviceMethod->isFormEncoded());
+
+            if (!$skipConversion) {
+                $convertedBody = $this->requestConverter->convert($request->body);
+                $request = $request->withBody($convertedBody);
+            }
         }
 
         // Check cache first
@@ -137,6 +144,18 @@ final class DefaultCall implements Call
 
     private function convertResponse(Response $response): Response
     {
+        // For streaming responses, return the PSR-7 stream directly
+        if ($this->serviceMethod !== null && $this->serviceMethod->isStreaming()) {
+            return new Response(
+                $response->code,
+                $response->message,
+                $response->getBody(), // Return StreamInterface for streaming
+                $response->headers,
+                $response->rawBody,
+            );
+        }
+
+        // Normal response conversion
         if ($this->responseConverter !== null && $response->rawBody !== null) {
             $convertedBody = $this->responseConverter->convert($response->rawBody);
             return new Response(
@@ -167,27 +186,22 @@ final class DefaultCall implements Call
         $this->executed = true;
 
         // Convert request body if converter exists
+        // Skip conversion for multipart and form-encoded requests
         $request = $this->request;
         if ($this->requestConverter !== null && $request->body !== null) {
-            $convertedBody = $this->requestConverter->convert($request->body);
-            $request = $request->withBody($convertedBody);
+            $skipConversion = $this->serviceMethod !== null &&
+                             ($this->serviceMethod->isMultipart() || $this->serviceMethod->isFormEncoded());
+
+            if (!$skipConversion) {
+                $convertedBody = $this->requestConverter->convert($request->body);
+                $request = $request->withBody($convertedBody);
+            }
         }
 
         // Execute HTTP request asynchronously
         return $this->httpClient->executeAsync($request)->then(
             function (Response $response) {
-                // Convert response body if converter exists
-                if ($this->responseConverter !== null && $response->rawBody !== null) {
-                    $convertedBody = $this->responseConverter->convert($response->rawBody);
-                    return new Response(
-                        $response->code,
-                        $response->message,
-                        $convertedBody,
-                        $response->headers,
-                        $response->rawBody,
-                    );
-                }
-                return $response;
+                return $this->convertResponse($response);
             }
         );
     }

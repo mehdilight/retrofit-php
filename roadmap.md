@@ -61,8 +61,16 @@
 - [x] PSR-7 ResponseInterface implementation
 - [x] Immutable request/response objects
 
+### Phase 4: File Handling ✅
+- [x] Multipart file uploads with streams (`FileUpload` class)
+- [x] Streaming file downloads (`#[Streaming]` attribute)
+- [x] Progress callbacks (`ProgressCallback` class)
+- [x] Support for file uploads from paths, strings, or PSR-7 streams
+- [x] Zero-memory-copy streaming for large files
+- [x] Automatic content-type detection
+
 ### Testing & Docs
-- [x] PHPUnit test suite (192 tests, 405 assertions)
+- [x] PHPUnit test suite (218 tests, 466 assertions)
 - [x] README documentation (comprehensive)
 - [x] Architecture diagrams (Mermaid)
 - [x] Example files (async, interceptors, pagination, typed DTOs)
@@ -71,11 +79,6 @@
 ---
 
 ## 📋 Planned
-
-### Phase 4: File Handling
-- [ ] Multipart file uploads (streams)
-- [ ] Streaming file downloads
-- [ ] Progress callbacks
 
 ### Phase 5: Error Handling
 - [ ] Error body parsing to classes
@@ -101,7 +104,24 @@
 
 ## Version History
 
-### v1.3.0 (Current)
+### v1.4.0 (Current)
+- **Phase 4: File Handling**
+- Multipart file uploads with streams
+  - `FileUpload` class for handling file uploads
+  - Support for files from paths, strings, or PSR-7 streams
+  - Zero-memory-copy streaming for large files
+  - Automatic content-type detection
+- Streaming file downloads
+  - `#[Streaming]` attribute for streaming endpoints
+  - Returns PSR-7 StreamInterface for efficient large file downloads
+  - No buffering of response body into memory
+- Progress callbacks
+  - `ProgressCallback` wrapper for tracking transfer progress
+  - Compatible with Guzzle progress options
+- Enhanced multipart/form-data handling in GuzzleHttpClient
+- 218 tests, 466 assertions
+
+### v1.3.0
 - **Phase 3: Advanced Features**
 - Retry policies with configurable backoff strategies
   - Exponential backoff with jitter support
