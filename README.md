@@ -18,7 +18,9 @@ Turn your HTTP API into a PHP interface using attributes.
 - ✅ **Interceptors** - Request/response modification and logging
 - ✅ **Timeouts** - Per-endpoint timeout configuration
 - ✅ **File Handling** - Streaming uploads/downloads with progress tracking
-- ✅ **PSR-7 Compliant** - Request and Response objects implement PSR-7
+- ✅ **PSR-7 & PSR-18 Compliant** - Full PSR standards support
+- ✅ **XML Support** - Built-in XML serialization/deserialization
+- ✅ **Symfony Serializer** - Advanced serialization with groups and contexts
 
 ## Table of Contents
 
@@ -36,6 +38,8 @@ Turn your HTTP API into a PHP interface using attributes.
 - [Timeouts](#timeouts)
 - [Interceptors](#interceptors)
 - [File Handling](#file-handling)
+- [Alternative HTTP Clients](#alternative-http-clients)
+- [Alternative Converters](#alternative-converters)
 - [Complete Example](#complete-example)
 
 ## Installation
@@ -865,6 +869,220 @@ $retrofit = Retrofit::builder()
 - Compatible with Guzzle's progress option
 - Includes total bytes when available
 
+## Alternative HTTP Clients
+
+### PSR-18 HTTP Client
+
+Use any PSR-18 compliant HTTP client instead of Guzzle.
+
+```php
+use Phpmystic\RetrofitPhp\Http\Psr18HttpClient;
+use Symfony\Component\HttpClient\Psr18Client;
+use Nyholm\Psr7\Factory\Psr17Factory;
+
+// Using Symfony HTTP Client
+$psr18Client = new Psr18Client();
+$httpClient = Psr18HttpClient::create($psr18Client);
+
+// Or with custom PSR-17 factories
+$psr17Factory = new Psr17Factory();
+$httpClient = new Psr18HttpClient($psr18Client, $psr17Factory, $psr17Factory);
+
+$retrofit = Retrofit::builder()
+    ->baseUrl('https://api.example.com')
+    ->client($httpClient)
+    ->addConverterFactory(new JsonConverterFactory())
+    ->build();
+```
+
+**Supported Clients:**
+- Symfony HTTP Client
+- Guzzle (via PSR-18 adapter)
+- HTTPlug
+- Any PSR-18 compliant client
+
+**Benefits:**
+- Vendor-agnostic HTTP abstraction
+- Swap HTTP clients without changing code
+- Better testability with PSR-18 mocks
+- Standards-compliant architecture
+
+**Note:** PSR-18 clients do not support async requests. Use `GuzzleHttpClient` for async operations.
+
+## Alternative Converters
+
+### XML Converter
+
+Serialize and deserialize XML for legacy APIs and enterprise systems.
+
+```php
+use Phpmystic\RetrofitPhp\Converter\XmlConverterFactory;
+use Phpmystic\RetrofitPhp\Attributes\Http\POST;
+use Phpmystic\RetrofitPhp\Attributes\Http\GET;
+use Phpmystic\RetrofitPhp\Attributes\Headers;
+use Phpmystic\RetrofitPhp\Attributes\Parameter\Body;
+
+interface SoapApi
+{
+    #[POST('/api/orders')]
+    #[Headers(['Content-Type' => 'application/xml'])]
+    public function createOrder(#[Body] array $order): array;
+
+    #[GET('/api/orders/{id}')]
+    #[Headers(['Accept' => 'application/xml'])]
+    public function getOrder(#[Path('id')] string $orderId): array;
+}
+
+$retrofit = Retrofit::builder()
+    ->baseUrl('https://legacy-api.example.com')
+    ->client(GuzzleHttpClient::create())
+    ->addConverterFactory(new XmlConverterFactory(
+        rootElement: 'Order',
+        version: '1.0',
+        encoding: 'UTF-8'
+    ))
+    ->build();
+
+$api = $retrofit->create(SoapApi::class);
+
+// Request will be sent as XML
+$result = $api->createOrder([
+    'id' => '12345',
+    'customer' => [
+        'name' => 'John Doe',
+        'email' => 'john@example.com',
+    ],
+    'items' => ['Widget', 'Gadget', 'Tool'],
+]);
+```
+
+**XML Request Example:**
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<Order>
+    <id>12345</id>
+    <customer>
+        <name>John Doe</name>
+        <email>john@example.com</email>
+    </customer>
+    <items>
+        <item>Widget</item>
+        <item>Gadget</item>
+        <item>Tool</item>
+    </items>
+</Order>
+```
+
+**Features:**
+- Nested structures support
+- XML attributes handling
+- CDATA support
+- Automatic singularization (items → item)
+- Custom root elements
+- Special character escaping
+
+### Symfony Serializer
+
+Leverage Symfony's powerful serialization component for advanced use cases.
+
+```php
+use Phpmystic\RetrofitPhp\Converter\SymfonySerializerConverterFactory;
+use Symfony\Component\Serializer\Serializer;
+use Symfony\Component\Serializer\Normalizer\ObjectNormalizer;
+use Symfony\Component\Serializer\Normalizer\DateTimeNormalizer;
+use Symfony\Component\Serializer\Encoder\JsonEncoder;
+use Symfony\Component\Serializer\Encoder\XmlEncoder;
+
+// Configure Symfony Serializer with custom normalizers
+$serializer = new Serializer(
+    [
+        new DateTimeNormalizer(),
+        new ObjectNormalizer(),
+    ],
+    [
+        new JsonEncoder(),
+        new XmlEncoder(),
+    ]
+);
+
+$retrofit = Retrofit::builder()
+    ->baseUrl('https://api.example.com')
+    ->client(GuzzleHttpClient::create())
+    ->addConverterFactory(new SymfonySerializerConverterFactory(
+        $serializer,
+        format: 'json',
+        context: ['json_encode_options' => JSON_PRETTY_PRINT]
+    ))
+    ->build();
+```
+
+**With Serialization Groups:**
+
+```php
+use Symfony\Component\Serializer\Annotation\Groups;
+
+class User
+{
+    #[Groups(['user:read', 'user:write'])]
+    public string $name;
+
+    #[Groups(['user:read'])]
+    public int $id;
+
+    #[Groups(['user:write'])]
+    public string $password;
+}
+
+interface UserApi
+{
+    #[GET('/users/{id}')]
+    public function getUser(#[Path('id')] int $id): User;
+
+    #[POST('/users')]
+    public function createUser(#[Body] User $user): User;
+}
+```
+
+**Advanced Features:**
+
+```php
+// Using XML format
+$converterFactory = new SymfonySerializerConverterFactory(
+    $serializer,
+    format: 'xml'
+);
+
+// With custom context
+$converterFactory = new SymfonySerializerConverterFactory(
+    $serializer,
+    context: [
+        'groups' => ['user:read'],
+        'datetime_format' => 'Y-m-d H:i:s',
+    ]
+);
+
+// With custom normalizers
+$serializer = new Serializer([
+    new CustomNormalizer(),
+    new ArrayDenormalizer(),
+    new ObjectNormalizer(),
+]);
+```
+
+**Benefits:**
+- Advanced serialization features (groups, max depth, callbacks)
+- Custom normalizers and denormalizers
+- Multiple format support (JSON, XML, YAML, CSV)
+- DateTime, UUID, and other built-in normalizers
+- Integration with Symfony validation
+- Property metadata support
+
+**Supported Formats:**
+- JSON (default)
+- XML
+- YAML (with symfony/yaml)
+- CSV (with symfony/serializer)
+
 ## Complete Example
 
 ```php
@@ -978,6 +1196,11 @@ $api->delete(1);
 
 - PHP 8.1+
 - Guzzle 7.0+
+
+**Optional Dependencies:**
+- PSR-18 HTTP Client: `psr/http-client` and a PSR-18 implementation (e.g., `symfony/http-client`, `nyholm/psr7`)
+- XML Support: Built-in (uses PHP's SimpleXML)
+- Symfony Serializer: `symfony/serializer` ^6.0 or ^7.0
 
 ## License
 

@@ -69,8 +69,24 @@
 - [x] Zero-memory-copy streaming for large files
 - [x] Automatic content-type detection
 
+### Phase 6: Alternative Implementations ✅
+- [x] PSR-18 HTTP client support
+  - `Psr18HttpClient` adapter for any PSR-18 compliant client
+  - Works with Symfony HTTP Client, Guzzle PSR-18 adapter, etc.
+  - Factory method with Nyholm PSR-7 integration
+- [x] XML converter
+  - `XmlConverterFactory`, `XmlRequestConverter`, `XmlResponseConverter`
+  - Full XML serialization/deserialization support
+  - Handles nested structures, attributes, CDATA
+  - Automatic singularization for array elements
+- [x] Symfony Serializer integration
+  - `SymfonySerializerConverterFactory` for advanced serialization
+  - Support for serialization groups and contexts
+  - Custom normalizers and denormalizers
+  - Multiple format support (JSON, XML, YAML, CSV)
+
 ### Testing & Docs
-- [x] PHPUnit test suite (218 tests, 466 assertions)
+- [x] PHPUnit test suite (271 tests, 580 assertions)
 - [x] README documentation (comprehensive)
 - [x] Architecture diagrams (Mermaid)
 - [x] Example files (async, interceptors, pagination, typed DTOs)
@@ -84,11 +100,6 @@
 - [ ] Error body parsing to classes
 - [ ] Custom exception types
 - [ ] Retry on specific errors
-
-### Phase 6: Alternative Implementations
-- [ ] PSR-18 client support
-- [ ] XML converter
-- [ ] Symfony Serializer integration
 
 ---
 
@@ -104,7 +115,28 @@
 
 ## Version History
 
-### v1.4.0 (Current)
+### v1.5.0 (Current)
+- **Phase 6: Alternative Implementations**
+- PSR-18 HTTP Client Support
+  - `Psr18HttpClient` adapter for any PSR-18 compliant HTTP client
+  - Use Symfony HTTP Client, HTTPlug, or any PSR-18 implementation
+  - Static factory with Nyholm PSR-7 integration
+  - Vendor-agnostic HTTP client abstraction
+- XML Converter
+  - `XmlConverterFactory`, `XmlRequestConverter`, `XmlResponseConverter`
+  - Full XML serialization and deserialization
+  - Support for nested structures, attributes, CDATA
+  - Automatic singularization for sequential arrays
+  - Custom root elements and encoding options
+- Symfony Serializer Integration
+  - `SymfonySerializerConverterFactory` for advanced serialization
+  - Leverage Symfony's powerful normalizer ecosystem
+  - Support for serialization groups and contexts
+  - Multiple format support (JSON, XML, YAML, CSV)
+  - ArrayDenormalizer support for arrays of objects
+- 271 tests, 580 assertions
+
+### v1.4.0
 - **Phase 4: File Handling**
 - Multipart file uploads with streams
   - `FileUpload` class for handling file uploads
