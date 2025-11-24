@@ -44,6 +44,270 @@ $api->createUser([
 // Sent as: {"name":"John Doe","email":"john@example.com"}
 ```
 
+## Typed JSON Converter (DTO Hydration)
+
+The TypedJsonConverterFactory provides automatic object hydration, converting JSON responses into strongly-typed PHP objects (DTOs).
+
+### Basic Usage
+
+```php
+use Phpmystic\RetrofitPhp\Converter\TypedJsonConverterFactory;
+use Phpmystic\RetrofitPhp\Retrofit;
+
+$retrofit = Retrofit::builder()
+    ->baseUrl('https://api.example.com')
+    ->client($client)
+    ->addConverterFactory(new TypedJsonConverterFactory())
+    ->build();
+```
+
+### Defining DTO Classes
+
+```php
+class User
+{
+    public int $id;
+    public string $name;
+    public string $email;
+}
+
+interface UserApi
+{
+    #[GET('/users/{id}')]
+    public function getUser(#[Path('id')] int $id): User;
+}
+
+// Returns a fully hydrated User object
+$user = $api->getUser(1);
+echo $user->name; // Type-safe access with IDE autocomplete
+```
+
+### Features
+
+#### 1. Nested Objects
+
+Automatically hydrates nested object structures.
+
+```php
+class Address
+{
+    public string $street;
+    public string $city;
+    public string $zipcode;
+}
+
+class Company
+{
+    public string $name;
+    public string $catchPhrase;
+}
+
+class User
+{
+    public int $id;
+    public string $name;
+    public Address $address;    // Nested object
+    public Company $company;     // Nested object
+}
+
+// JSON response:
+// {
+//   "id": 1,
+//   "name": "John",
+//   "address": {"street": "Main St", "city": "NYC", "zipcode": "10001"},
+//   "company": {"name": "Acme Inc", "catchPhrase": "Innovation"}
+// }
+
+$user = $api->getUser(1);
+echo $user->address->city;      // "NYC" - fully typed nested access
+echo $user->company->name;       // "Acme Inc"
+```
+
+#### 2. Field Name Mapping with #[SerializedName]
+
+Map JSON field names to different property names using the `#[SerializedName]` attribute.
+
+```php
+use Phpmystic\RetrofitPhp\Attributes\SerializedName;
+
+class Post
+{
+    public int $id;
+
+    #[SerializedName('userId')]
+    public int $authorId;  // Maps from "userId" in JSON to "authorId" property
+
+    public string $title;
+    public string $body;
+}
+
+// JSON response: {"id": 1, "userId": 42, "title": "Hello", "body": "..."}
+$post = $api->getPost(1);
+echo $post->authorId;  // 42 (from JSON's "userId")
+```
+
+#### 3. Arrays of Objects with #[ArrayType]
+
+Use the `#[ArrayType]` attribute on properties to define arrays of typed objects.
+
+```php
+use Phpmystic\RetrofitPhp\Attributes\ArrayType;
+
+class Post
+{
+    public int $id;
+    public string $title;
+}
+
+class UserWithPosts
+{
+    public int $id;
+    public string $name;
+
+    #[ArrayType(Post::class)]
+    public array $posts = [];  // Array of Post objects
+}
+
+// JSON response:
+// {
+//   "id": 1,
+//   "name": "John",
+//   "posts": [
+//     {"id": 1, "title": "First Post"},
+//     {"id": 2, "title": "Second Post"}
+//   ]
+// }
+
+$user = $api->getUserWithPosts(1);
+foreach ($user->posts as $post) {
+    echo $post->title;  // Each $post is a Post object
+}
+```
+
+#### 4. Array Responses with #[ResponseType]
+
+For methods that return arrays of objects, use the `#[ResponseType]` attribute at the method level.
+
+```php
+use Phpmystic\RetrofitPhp\Attributes\ResponseType;
+
+interface PostApi
+{
+    // Without ResponseType - returns array of arrays
+    #[GET('/posts')]
+    public function getPosts(): array;
+
+    // With ResponseType - returns array of Post objects
+    #[GET('/posts')]
+    #[ResponseType(Post::class, isArray: true)]
+    public function getPostsTyped(): array;
+}
+
+// Without ResponseType
+$posts = $api->getPosts();
+echo $posts[0]['title'];  // Array access
+
+// With ResponseType
+$posts = $api->getPostsTyped();
+echo $posts[0]->title;    // Object access - each item is a Post
+```
+
+### Complete Example
+
+```php
+use Phpmystic\RetrofitPhp\Attributes\Http\GET;
+use Phpmystic\RetrofitPhp\Attributes\Parameter\Path;
+use Phpmystic\RetrofitPhp\Attributes\ResponseType;
+use Phpmystic\RetrofitPhp\Attributes\SerializedName;
+use Phpmystic\RetrofitPhp\Attributes\ArrayType;
+
+// Define DTOs
+class Address
+{
+    public string $street;
+    public string $city;
+    public string $zipcode;
+}
+
+class Post
+{
+    #[SerializedName('userId')]
+    public int $authorId;
+
+    public int $id;
+    public string $title;
+    public string $body;
+}
+
+class User
+{
+    public int $id;
+    public string $name;
+    public string $email;
+    public Address $address;  // Nested object
+
+    #[ArrayType(Post::class)]
+    public array $posts = [];  // Array of Post objects
+}
+
+// Define API
+interface BlogApi
+{
+    #[GET('/users/{id}')]
+    public function getUser(#[Path('id')] int $id): User;
+
+    #[GET('/posts')]
+    #[ResponseType(Post::class, isArray: true)]
+    public function getAllPosts(): array;
+}
+
+// Setup
+$retrofit = Retrofit::builder()
+    ->baseUrl('https://api.example.com')
+    ->client($client)
+    ->addConverterFactory(new TypedJsonConverterFactory())
+    ->build();
+
+$api = $retrofit->create(BlogApi::class);
+
+// Usage - fully typed responses
+$user = $api->getUser(1);
+echo $user->name;                    // Type-safe
+echo $user->address->city;           // Nested object access
+foreach ($user->posts as $post) {    // Typed array iteration
+    echo $post->title;
+}
+
+$posts = $api->getAllPosts();        // Array of Post objects
+echo $posts[0]->authorId;            // Mapped from "userId"
+```
+
+### Benefits
+
+- **Type Safety**: IDE autocomplete and static analysis support
+- **Clean Code**: Work with objects instead of arrays
+- **Refactoring**: Easy to rename properties and find usages
+- **Documentation**: DTOs serve as self-documenting API contracts
+- **Validation**: Leverage PHP type hints for basic validation
+
+### When to Use Typed JSON Converter
+
+- You want type-safe API responses
+- Your API has complex nested structures
+- You value IDE autocomplete and refactoring support
+- You prefer object-oriented code over array manipulation
+- You want clear documentation of API response structures
+
+### Comparison with JSON Converter
+
+| Feature | JsonConverterFactory | TypedJsonConverterFactory |
+|---------|---------------------|---------------------------|
+| Return Type | `array` | Custom DTO classes |
+| Nested Data | `$data['address']['city']` | `$user->address->city` |
+| IDE Support | Limited | Full autocomplete |
+| Array Responses | `array<array>` | `array<Post>` with `#[ResponseType]` |
+| Field Mapping | Manual | `#[SerializedName]` attribute |
+
 ## XML Converter
 
 Built-in XML support for legacy APIs and enterprise systems.
@@ -390,9 +654,16 @@ $retrofit = Retrofit::builder()
 
 ### Use JSON Converter When:
 - Working with modern REST APIs
-- You need simple, fast serialization
-- Your API uses JSON format
-- You're building a new application
+- You need simple, fast serialization without type safety
+- Your API uses JSON format and you prefer working with arrays
+- You're building simple integrations or scripts
+
+### Use Typed JSON Converter When:
+- You want type-safe API responses with IDE autocomplete
+- Your API has complex nested structures
+- You value refactoring support and static analysis
+- You prefer object-oriented code over array manipulation
+- You want self-documenting API contracts through DTOs
 
 ### Use XML Converter When:
 - Working with legacy systems

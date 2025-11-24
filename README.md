@@ -11,7 +11,8 @@ Turn your HTTP API into a PHP interface using attributes.
 - ✅ **URL Parameters** - Path parameters, query parameters, and query maps
 - ✅ **Request Body** - JSON, form-encoded, and multipart requests
 - ✅ **Headers** - Static and dynamic headers
-- ✅ **Converters** - JSON conversion with custom DTO/model hydration
+- ✅ **Converters** - JSON, XML, and custom converters
+- ✅ **DTO Hydration** - Automatic object mapping with nested objects and field name mapping
 - ✅ **Async Requests** - Promise-based async operations with Guzzle
 - ✅ **Retry Policies** - Automatic retries with exponential backoff
 - ✅ **Response Caching** - TTL-based caching with pluggable cache backends
@@ -72,6 +73,15 @@ $retrofit = Retrofit::builder()
     ->client(GuzzleHttpClient::create(['timeout' => 30]))
     ->addConverterFactory(new JsonConverterFactory())
     ->build();
+
+// Or use TypedJsonConverterFactory for automatic DTO hydration
+use Phpmystic\RetrofitPhp\Converter\TypedJsonConverterFactory;
+
+$retrofit = Retrofit::builder()
+    ->baseUrl('https://api.github.com')
+    ->client(GuzzleHttpClient::create(['timeout' => 30]))
+    ->addConverterFactory(new TypedJsonConverterFactory())  // Enables DTO hydration
+    ->build();
 ```
 
 ### 3. Use your API
@@ -103,7 +113,7 @@ $issue = $github->createIssue('owner', 'repo', [
 
 ### Configuration
 - [HTTP Client Configuration](docs/client-configuration.md) - Guzzle options and custom clients
-- [Converters](docs/converters.md) - JSON, XML, Symfony Serializer, and custom converters
+- [Converters](docs/converters.md) - JSON, XML, Symfony Serializer, DTO hydration, and custom converters
 - [Timeouts](docs/timeouts.md) - Per-endpoint timeout configuration
 
 ### Advanced Features
