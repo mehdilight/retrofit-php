@@ -8,17 +8,21 @@ use InvalidArgumentException;
 use Phpmystic\RetrofitPhp\Contracts\CallAdapterFactory;
 use Phpmystic\RetrofitPhp\Contracts\ConverterFactory;
 use Phpmystic\RetrofitPhp\Contracts\HttpClient;
+use Phpmystic\RetrofitPhp\Contracts\Interceptor;
 
 final class RetrofitBuilder
 {
     private ?string $baseUrl = null;
     private ?HttpClient $httpClient = null;
 
-    /** @var list<ConverterFactory> */
+    /** @var ConverterFactory[] */
     private array $converterFactories = [];
 
-    /** @var list<CallAdapterFactory> */
+    /** @var CallAdapterFactory[] */
     private array $callAdapterFactories = [];
+
+    /** @var Interceptor[] */
+    private array $interceptors = [];
 
     public function baseUrl(string $baseUrl): self
     {
@@ -44,6 +48,12 @@ final class RetrofitBuilder
         return $this;
     }
 
+    public function addInterceptor(Interceptor $interceptor): self
+    {
+        $this->interceptors[] = $interceptor;
+        return $this;
+    }
+
     public function build(): Retrofit
     {
         if ($this->baseUrl === null) {
@@ -59,6 +69,7 @@ final class RetrofitBuilder
             $this->httpClient,
             $this->converterFactories,
             $this->callAdapterFactories,
+            $this->interceptors,
         );
     }
 }

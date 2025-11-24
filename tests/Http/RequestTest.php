@@ -38,6 +38,37 @@ class RequestTest extends TestCase
         ], $newRequest->headers);
     }
 
+    public function testWithHeader(): void
+    {
+        $request = new Request('GET', 'https://api.example.com/users', ['Accept' => 'application/json']);
+        $newRequest = $request->withHeader('Authorization', 'Bearer token');
+
+        $this->assertSame(['Accept' => 'application/json'], $request->headers);
+        $this->assertSame([
+            'Accept' => 'application/json',
+            'Authorization' => 'Bearer token',
+        ], $newRequest->headers);
+    }
+
+    public function testWithHeaderOverwritesExisting(): void
+    {
+        $request = new Request('GET', 'https://api.example.com/users', ['Authorization' => 'Bearer old']);
+        $newRequest = $request->withHeader('Authorization', 'Bearer new');
+
+        $this->assertSame('Bearer new', $newRequest->headers['Authorization']);
+    }
+
+    public function testWithHeaderChaining(): void
+    {
+        $request = new Request('GET', 'https://api.example.com/users');
+        $newRequest = $request
+            ->withHeader('Authorization', 'Bearer token')
+            ->withHeader('X-API-Key', 'key123');
+
+        $this->assertSame('Bearer token', $newRequest->headers['Authorization']);
+        $this->assertSame('key123', $newRequest->headers['X-API-Key']);
+    }
+
     public function testWithBody(): void
     {
         $request = new Request('POST', 'https://api.example.com/users');

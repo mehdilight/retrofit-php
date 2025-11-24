@@ -6,7 +6,9 @@ namespace Phpmystic\RetrofitPhp\Tests;
 
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
+use Phpmystic\RetrofitPhp\Contracts\Chain;
 use Phpmystic\RetrofitPhp\Contracts\HttpClient;
+use Phpmystic\RetrofitPhp\Contracts\Interceptor;
 use Phpmystic\RetrofitPhp\Http\Request;
 use Phpmystic\RetrofitPhp\Http\Response;
 use Phpmystic\RetrofitPhp\Retrofit;
@@ -65,5 +67,48 @@ class RetrofitBuilderTest extends TestCase
     {
         $builder = new RetrofitBuilder();
         $this->assertInstanceOf(RetrofitBuilder::class, $builder);
+    }
+
+    public function testAddInterceptorReturnsSelf(): void
+    {
+        $interceptor = new class implements Interceptor {
+            public function intercept(Chain $chain): Response
+            {
+                return $chain->proceed($chain->request());
+            }
+        };
+
+        $builder = Retrofit::builder();
+        $result = $builder->addInterceptor($interceptor);
+
+        $this->assertSame($builder, $result);
+    }
+
+    public function testBuilderAcceptsMultipleInterceptors(): void
+    {
+        $httpClient = $this->createMock(HttpClient::class);
+
+        $interceptor1 = new class implements Interceptor {
+            public function intercept(Chain $chain): Response
+            {
+                return $chain->proceed($chain->request());
+            }
+        };
+
+        $interceptor2 = new class implements Interceptor {
+            public function intercept(Chain $chain): Response
+            {
+                return $chain->proceed($chain->request());
+            }
+        };
+
+        $retrofit = Retrofit::builder()
+            ->baseUrl('https://api.example.com')
+            ->client($httpClient)
+            ->addInterceptor($interceptor1)
+            ->addInterceptor($interceptor2)
+            ->build();
+
+        $this->assertInstanceOf(Retrofit::class, $retrofit);
     }
 }

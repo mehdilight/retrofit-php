@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Phpmystic\RetrofitPhp\Contracts;
 
+use GuzzleHttp\Promise\PromiseInterface;
 use Phpmystic\RetrofitPhp\Http\Response;
 
 /**
@@ -17,6 +18,13 @@ interface Call
      * @return Response<T>
      */
     public function execute(): Response;
+
+    /**
+     * Asynchronously execute the request.
+     *
+     * @return PromiseInterface<Response<T>>
+     */
+    public function executeAsync(): PromiseInterface;
 
     /**
      * Returns true if this call has been executed.

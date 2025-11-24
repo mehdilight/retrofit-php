@@ -315,6 +315,86 @@ class XmlConverterFactory implements ConverterFactory
 }
 ```
 
+## Async Requests
+
+Execute requests asynchronously using Guzzle Promises.
+
+### Using Call Object
+
+```php
+use GuzzleHttp\Promise\Utils;
+
+// Get the internal proxy to access Call objects
+$reflection = new ReflectionClass($retrofit);
+$method = $reflection->getMethod('getServiceProxy');
+$method->setAccessible(true);
+$proxy = $method->invoke($retrofit, MyApi::class);
+
+// Create Call and execute async
+$call = $proxy->invoke('getUser', [1]);
+$promise = $call->executeAsync();
+
+// Wait for result
+$response = $promise->wait();
+echo $response->body['name'];
+```
+
+### Parallel Requests
+
+```php
+// Create multiple calls
+$userCall = $proxy->invoke('getUser', [1]);
+$postCall = $proxy->invoke('getPost', [1]);
+$commentCall = $proxy->invoke('getComment', [1]);
+
+// Execute all in parallel
+$promises = [
+    'user' => $userCall->executeAsync(),
+    'post' => $postCall->executeAsync(),
+    'comment' => $commentCall->executeAsync(),
+];
+
+// Wait for all to complete
+$responses = Utils::unwrap($promises);
+
+echo $responses['user']->body['name'];
+echo $responses['post']->body['title'];
+```
+
+### With Callbacks
+
+```php
+$call = $proxy->invoke('getUser', [1]);
+
+$promise = $call->executeAsync()
+    ->then(function ($response) {
+        echo "Got user: {$response->body['name']}\n";
+        return $response;
+    })
+    ->otherwise(function ($exception) {
+        echo "Error: {$exception->getMessage()}\n";
+    });
+
+$promise->wait();
+```
+
+### Batch Processing
+
+```php
+// Fetch 10 posts in parallel
+$promises = [];
+for ($i = 1; $i <= 10; $i++) {
+    $call = $proxy->invoke('getPost', [$i]);
+    $promises[] = $call->executeAsync();
+}
+
+$responses = Utils::unwrap($promises);
+
+foreach ($responses as $response) {
+    echo $response->body['title'] . "\n";
+}
+```
+
 ## Complete Example
 
 ```php

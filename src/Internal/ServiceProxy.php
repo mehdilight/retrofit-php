@@ -9,6 +9,8 @@ use ReflectionMethod;
 use Phpmystic\RetrofitPhp\Contracts\Call;
 use Phpmystic\RetrofitPhp\Contracts\ConverterFactory;
 use Phpmystic\RetrofitPhp\Contracts\HttpClient;
+use Phpmystic\RetrofitPhp\Contracts\Interceptor;
+use Phpmystic\RetrofitPhp\Contracts\ResponseTypeAwareConverterFactory;
 use RuntimeException;
 
 final class ServiceProxy
@@ -18,13 +20,15 @@ final class ServiceProxy
 
     /**
      * @param class-string $interface
-     * @param list<ConverterFactory> $converterFactories
+     * @param ConverterFactory[] $converterFactories
+     * @param Interceptor[] $interceptors
      */
     public function __construct(
         private readonly string $interface,
         private readonly string $baseUrl,
         private readonly HttpClient $httpClient,
         private readonly array $converterFactories,
+        private readonly array $interceptors = [],
     ) {
         $this->validateInterface();
         $this->loadServiceMethods();
@@ -72,6 +76,7 @@ final class ServiceProxy
             $request,
             $requestConverter,
             $responseConverter,
+            $this->interceptors,
         );
     }
 
@@ -89,7 +94,18 @@ final class ServiceProxy
     private function findResponseConverter(ServiceMethod $serviceMethod): ?\Phpmystic\RetrofitPhp\Contracts\Converter
     {
         $returnType = $serviceMethod->getReturnType();
+        $responseType = $serviceMethod->getResponseType();
+
         foreach ($this->converterFactories as $factory) {
+            // If factory supports ResponseType and we have one, use that method
+            if ($responseType !== null && $factory instanceof ResponseTypeAwareConverterFactory) {
+                $converter = $factory->responseBodyConverterWithResponseType($returnType, $responseType);
+                if ($converter !== null) {
+                    return $converter;
+                }
+            }
+
+            // Fallback to standard method
             $converter = $factory->responseBodyConverter($returnType);
             if ($converter !== null) {
                 return $converter;

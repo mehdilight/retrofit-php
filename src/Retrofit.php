@@ -9,6 +9,7 @@ use ReflectionMethod;
 use Phpmystic\RetrofitPhp\Contracts\CallAdapterFactory;
 use Phpmystic\RetrofitPhp\Contracts\ConverterFactory;
 use Phpmystic\RetrofitPhp\Contracts\HttpClient;
+use Phpmystic\RetrofitPhp\Contracts\Interceptor;
 use Phpmystic\RetrofitPhp\Internal\ServiceProxy;
 
 final class Retrofit
@@ -17,14 +18,16 @@ final class Retrofit
     private array $serviceProxies = [];
 
     /**
-     * @param list<ConverterFactory> $converterFactories
-     * @param list<CallAdapterFactory> $callAdapterFactories
+     * @param ConverterFactory[] $converterFactories
+     * @param CallAdapterFactory[] $callAdapterFactories
+     * @param Interceptor[] $interceptors
      */
     public function __construct(
         private readonly string $baseUrl,
         private readonly HttpClient $httpClient,
         private readonly array $converterFactories,
         private readonly array $callAdapterFactories,
+        private readonly array $interceptors = [],
     ) {}
 
     public static function builder(): RetrofitBuilder
@@ -64,6 +67,7 @@ final class Retrofit
                 $this->baseUrl,
                 $this->httpClient,
                 $this->converterFactories,
+                $this->interceptors,
             );
         }
 
@@ -199,7 +203,7 @@ PHP;
     }
 
     /**
-     * @return list<ConverterFactory>
+     * @return ConverterFactory[]
      */
     public function converterFactories(): array
     {
@@ -207,7 +211,7 @@ PHP;
     }
 
     /**
-     * @return list<CallAdapterFactory>
+     * @return CallAdapterFactory[]
      */
     public function callAdapterFactories(): array
     {

@@ -23,6 +23,7 @@ use Phpmystic\RetrofitPhp\Attributes\Parameter\Path;
 use Phpmystic\RetrofitPhp\Attributes\Parameter\Query;
 use Phpmystic\RetrofitPhp\Attributes\Parameter\QueryMap;
 use Phpmystic\RetrofitPhp\Attributes\Parameter\Url;
+use Phpmystic\RetrofitPhp\Attributes\ResponseType;
 use Phpmystic\RetrofitPhp\Contracts\Converter;
 use Phpmystic\RetrofitPhp\Contracts\ConverterFactory;
 use Phpmystic\RetrofitPhp\Http\Request;
@@ -42,11 +43,12 @@ final class ServiceMethod
     private array $parameterHandlers = [];
 
     private ?ReflectionNamedType $returnType = null;
+    private ?ResponseType $responseType = null;
 
     public function __construct(
         private readonly ReflectionMethod $method,
         private readonly string $baseUrl,
-        /** @var list<ConverterFactory> */
+        /** @var ConverterFactory[] */
         private readonly array $converterFactories,
     ) {
         $this->parseMethodAttributes();
@@ -54,6 +56,12 @@ final class ServiceMethod
         $this->returnType = $method->getReturnType() instanceof ReflectionNamedType
             ? $method->getReturnType()
             : null;
+
+        // Parse ResponseType attribute
+        $responseTypeAttr = $this->findAttribute($this->method, ResponseType::class);
+        if ($responseTypeAttr !== null) {
+            $this->responseType = $responseTypeAttr->newInstance();
+        }
     }
 
     private function parseMethodAttributes(): void
@@ -271,5 +279,10 @@ final class ServiceMethod
     public function getHttpMethod(): string
     {
         return $this->httpMethod;
+    }
+
+    public function getResponseType(): ?ResponseType
+    {
+        return $this->responseType;
     }
 }

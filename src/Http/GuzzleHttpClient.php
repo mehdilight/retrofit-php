@@ -7,6 +7,7 @@ namespace Phpmystic\RetrofitPhp\Http;
 use GuzzleHttp\Client;
 use GuzzleHttp\ClientInterface;
 use GuzzleHttp\Exception\GuzzleException;
+use GuzzleHttp\Promise\PromiseInterface;
 use Phpmystic\RetrofitPhp\Contracts\HttpClient;
 
 final class GuzzleHttpClient implements HttpClient
@@ -44,6 +45,25 @@ final class GuzzleHttpClient implements HttpClient
 
             throw $e;
         }
+    }
+
+    public function executeAsync(Request $request): PromiseInterface
+    {
+        $options = $this->buildOptions($request);
+
+        return $this->client->requestAsync(
+            $request->method,
+            $request->url,
+            $options,
+        )->then(
+            fn(\Psr\Http\Message\ResponseInterface $response) => $this->buildResponse($response),
+            function (\Throwable $e) {
+                if (method_exists($e, 'getResponse') && $e->getResponse() !== null) {
+                    return $this->buildResponse($e->getResponse());
+                }
+                throw $e;
+            }
+        );
     }
 
     /**

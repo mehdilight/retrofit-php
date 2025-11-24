@@ -1,5 +1,7 @@
 {
     "name": "phpmystic/retrofit-php",
+    "description": "A type-safe HTTP client for PHP inspired by Square's Retrofit. Turn your HTTP API into a PHP interface using attributes.",
+    "version": "1.2.0",
     "type": "library",
     "license": "MIT",
     "autoload": {
